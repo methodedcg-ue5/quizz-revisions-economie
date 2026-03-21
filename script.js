@@ -1,18 +1,18 @@
 /* ══════════════════════════════════════════════════
-   DCG QUIZ v2 — script.js
+   DCG QUIZ v3 — script.js
    ──────────────────────────────────────────────────
    MODULES :
      1. APP_STATE   – état centralisé
      2. DATA        – chargement JSON
      3. NAVIGATION  – transitions entre écrans
-     4. UI_HOME     – rendu écran Thèmes
-     5. UI_CHAPTERS – rendu écran Chapitres
-     6. UI_CONFIG   – rendu écran Config
-     7. QUIZ_ENGINE – logique métier quiz
-     8. UI_QUIZ     – rendu écran Quiz
-     9. TIMER       – minuteur SVG 30 s
-    10. UI_RESULTS  – rendu écran Résultats
-    11. STORAGE     – sauvegarde localStorage
+     4. UI_HOME     – écran Thèmes
+     5. UI_CHAPTERS – écran Chapitres
+     6. UI_CONFIG   – écran Config
+     7. QUIZ_ENGINE – logique métier
+     8. UI_QUIZ     – rendu questions + animations
+     9. TIMER       – minuteur adaptatif (VF/QCU/QCM)
+    10. UI_RESULTS  – écran résultats complet
+    11. STORAGE     – localStorage
     12. UTILS       – helpers
    ══════════════════════════════════════════════════ */
 
@@ -20,24 +20,28 @@
 
 /* ══ 1. APP_STATE ══════════════════════════════════ */
 const S = {
-  data:         null,   // JSON complet (themes[])
-  theme:        null,   // thème actif
-  chapitre:     null,   // chapitre actif
-  questions:    [],     // tirage actif (mélangé, tronqué)
-  qCount:       40,     // nb questions choisi
-  timerOn:      true,   // timer activé ?
-  cur:          0,      // index question en cours
-  score:        0,      // score
-  selected:     [],     // indexes cochés
-  answered:     false,  // question validée ?
-  timerHandle:  null,   // setInterval
-  timeLeft:     30,     // secondes restantes
+  data:       null,   // JSON
+  theme:      null,   // thème actif
+  chapitre:   null,   // chapitre actif
+  questions:  [],     // tirage mélangé
+  timerOn:    true,
+  cur:        0,
+  score:      0,
+  selected:   [],
+  answered:   false,
+  timerHandle:null,
+  timeLeft:   0,
+  timeSecs:   0,      // durée pour cette question
+  errors:     [],     // { q, userSelected, correct }
 };
 
-const TIMER_SECS   = 30;
-const CIRCUM_TIMER = 163.36;  // 2π × 26 (rayon arc timer float)
-const CIRCUM_RING  = 351.86;  // 2π × 56 (rayon anneau résultats)
-const STORE_KEY    = 'dcgquiz_v2';
+// Durées timer par type
+const TIMER_BY_TYPE = { VF: 8, QCU: 15, QCM: 20 };
+
+// Circonférence anneau résultats (r=64)
+const CIRCUM_RING = 402.12;
+
+const STORE_KEY = 'dcgquiz_v3';
 
 /* ══ 2. DATA ══════════════════════════════════════ */
 fetch('data/questions.json')
@@ -46,12 +50,12 @@ fetch('data/questions.json')
   .catch(err => {
     document.body.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:center;
-                  min-height:100svh;font-family:sans-serif;text-align:center;padding:2rem;">
+                  min-height:100svh;font-family:sans-serif;text-align:center;padding:2rem;background:#0f0f13;color:#e8e6f0;">
         <div>
           <p style="font-size:2.5rem;margin-bottom:1rem">⚠️</p>
-          <strong style="color:#991B1B">Erreur de chargement</strong><br>
+          <strong style="color:#e06b6b">Erreur de chargement</strong><br>
           <small style="color:#888">${err.message}</small><br><br>
-          <code style="color:#aaa;font-size:.8rem">data/questions.json</code>
+          <code style="color:#888;font-size:.8rem">data/questions.json</code>
         </div>
       </div>`;
   });
@@ -66,8 +70,8 @@ const SCREENS = {
 };
 
 function showScreen(name) {
-  Object.entries(SCREENS).forEach(([k, el]) =>
-    el.classList.toggle('active', k === name));
+  Object.entries(SCREENS).forEach(([k, e]) =>
+    e.classList.toggle('active', k === name));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -78,45 +82,39 @@ const HOME = {
     setText('site-matiere', data.matiere);
     document.title = `Quiz — ${data.matiere}`;
 
-    const totalQ  = sumQuestions(data);
-    const totalCh = data.themes.reduce((s, t) => s + t.chapitres.length, 0);
+    const totalQ  = sumQ(data);
+    const totalCh = data.themes.reduce((s,t) => s + t.chapitres.length, 0);
     setText('home-kpi', `${totalQ} questions · ${totalCh} chapitres · ${data.themes.length} thèmes`);
 
-    const scores = STORAGE.get();
-    const doneCh = Object.keys(scores).length;
+    const scores  = STORAGE.get();
+    const doneCh  = Object.keys(scores).length;
     setText('footer-info',
-      `${totalQ} questions disponibles · ${doneCh} chapitre${doneCh > 1 ? 's' : ''} complété${doneCh > 1 ? 's' : ''}`);
+      `${totalQ} questions · ${doneCh} chapitre${doneCh!==1?'s':''} complété${doneCh!==1?'s':''}`);
 
     const wrap = document.getElementById('themes-wrap');
     wrap.innerHTML = '';
-
     data.themes.forEach((t, i) => {
-      const chapCount = t.chapitres.length;
-      const qCount    = t.chapitres.reduce((s, ch) => s + ch.questions.length, 0);
-      const doneCount = t.chapitres.filter(ch => scores[ch.id]).length;
-      const pct       = chapCount > 0 ? Math.round((doneCount / chapCount) * 100) : 0;
+      const chCount = t.chapitres.length;
+      const qCount  = t.chapitres.reduce((s,ch) => s + ch.questions.length, 0);
+      const done    = t.chapitres.filter(ch => scores[ch.id]).length;
+      const pct     = chCount > 0 ? Math.round(done/chCount*100) : 0;
+      const nums    = t.chapitres.map(ch => `Ch.${ch.id}`).join(' · ');
 
-      // Raccourcis chapitres pour chips
-      const chapNums = t.chapitres.map(ch => `Ch.${ch.id}`).join(' · ');
-
-      const card = el('div', 'theme-card');
+      const card = mk('div','theme-card');
       card.style.setProperty('--tc', t.couleur);
-      card.style.animationDelay = `${i * 55}ms`;
+      card.style.animationDelay = `${i*55}ms`;
       card.innerHTML = `
         <div class="tc-row">
           <span class="tc-icon">${t.icon}</span>
-          <div>
-            <div class="tc-name">${t.theme}</div>
-          </div>
+          <div><div class="tc-name">${t.theme}</div></div>
         </div>
-        <div class="tc-meta">${chapCount} chapitre${chapCount > 1 ? 's' : ''} · ${qCount} questions</div>
-        <div class="tc-chips"><span class="tc-chip">${chapNums}</span></div>
+        <div class="tc-meta">${chCount} chapitre${chCount!==1?'s':''} · ${qCount} questions</div>
+        <div class="tc-chips"><span class="tc-chip">${nums}</span></div>
         <div class="tc-progress"><div class="tc-bar" style="width:${pct}%"></div></div>
         <span class="tc-arrow">›</span>`;
       card.addEventListener('click', () => CHAPTERS.open(t));
       wrap.appendChild(card);
     });
-
     showScreen('home');
   }
 };
@@ -126,40 +124,36 @@ const CHAPTERS = {
   open(theme) {
     S.theme = theme;
     const scores = STORAGE.get();
-
     setText('nav-theme-label', theme.theme);
     setText('ch-emoji', theme.icon);
     setText('ch-title', theme.theme);
 
     const list = document.getElementById('ch-list');
     list.innerHTML = '';
-
     theme.chapitres.forEach((ch, i) => {
-      const types  = [...new Set(ch.questions.map(q => q.type))];
-      const saved  = scores[ch.id];
-      const pillsHTML = types.map(t => {
-        const cls = t === 'QCU' ? 'qcu' : t === 'QCM' ? 'qcm' : 'vf';
-        return `<span class="pill ${cls}">${t === 'VF' ? 'V/F' : t}</span>`;
+      const types = [...new Set(ch.questions.map(q => q.type))];
+      const saved = scores[ch.id];
+      const pills = types.map(t => {
+        const c = t==='QCU'?'qcu':t==='QCM'?'qcm':'vf';
+        return `<span class="pill ${c}">${t==='VF'?'V/F':t}</span>`;
       }).join('');
-      const scoreHTML = saved
-        ? `<span class="ch-score">✓ ${saved.score}/${saved.total}</span>`
-        : '';
+      const scoreBadge = saved
+        ? `<span class="ch-score">✓ ${saved.score}/${saved.total}</span>` : '';
 
-      const item = el('li', 'ch-item');
+      const item = mk('li','ch-item');
       item.style.setProperty('--ch-c', theme.couleur);
-      item.style.animationDelay = `${i * 45}ms`;
+      item.style.animationDelay = `${i*45}ms`;
       item.innerHTML = `
         <span class="ch-num">Ch. ${ch.id}</span>
         <div class="ch-info">
           <div class="ch-name">${stripNum(ch.titre)}</div>
-          <div class="ch-pills">${pillsHTML}</div>
+          <div class="ch-pills">${pills}</div>
         </div>
-        ${scoreHTML}
+        ${scoreBadge}
         <span class="ch-arrow">›</span>`;
       item.addEventListener('click', () => CONFIG.open(ch, theme));
       list.appendChild(item);
     });
-
     showScreen('chapters');
   }
 };
@@ -169,84 +163,74 @@ const CONFIG = {
   open(chapitre, theme) {
     S.chapitre = chapitre;
     const total = chapitre.questions.length;
-
     setText('nav-chap-label', `Ch. ${chapitre.id}`);
     setText('cfg-emoji', theme.icon);
     setText('cfg-title', stripNum(chapitre.titre));
-    setText('cfg-sub',   `${total} questions disponibles · ${theme.theme}`);
+    setText('cfg-sub',   `${total} questions · ${theme.theme}`);
 
-    // Activer/désactiver les options de count + classe CSS
-    document.querySelectorAll('.count-opt').forEach(label => {
-      const radio = label.querySelector('input');
+    document.querySelectorAll('.count-opt').forEach(lbl => {
+      const radio = lbl.querySelector('input');
       const n = parseInt(radio.value);
-      const disabled = n > total;
-      radio.disabled = disabled;
-      label.classList.toggle('disabled', disabled);
+      const dis = n > total;
+      radio.disabled = dis;
+      lbl.classList.toggle('disabled', dis);
     });
 
-    // Sélectionner le plus grand count disponible
-    document.querySelectorAll('[name="qcount"]').forEach(r => { r.checked = false; });
+    document.querySelectorAll('[name="qcount"]').forEach(r => r.checked = false);
     const enabled = [...document.querySelectorAll('[name="qcount"]:not(:disabled)')];
-    if (enabled.length) enabled[enabled.length - 1].checked = true;
+    if (enabled.length) enabled[enabled.length-1].checked = true;
 
     this.updateWarn(total);
-
-    // Écouter les changements via delegation (une seule fois)
     document.getElementById('count-row').onchange = () => this.updateWarn(total);
-
     showScreen('config');
   },
-
   updateWarn(total) {
     const chosen = parseInt(
-      (document.querySelector('[name="qcount"]:checked') || { value: 40 }).value);
+      (document.querySelector('[name="qcount"]:checked') || {value:40}).value);
     const warn = document.getElementById('count-warn');
     if (chosen > total) {
-      warn.textContent = `⚠ Seulement ${total} questions disponibles — le quiz sera limité à ${total} questions.`;
+      warn.textContent = `⚠ Seulement ${total} questions disponibles.`;
       warn.classList.remove('hidden');
     } else {
       warn.classList.add('hidden');
     }
   },
-
-  getCount() {
-    return parseInt(
-      (document.querySelector('[name="qcount"]:checked') || { value: 40 }).value);
-  },
-
-  getTimerOn() {
-    return document.getElementById('timer-toggle').checked;
-  }
+  getCount()   { return parseInt((document.querySelector('[name="qcount"]:checked')||{value:40}).value); },
+  getTimerOn() { return document.getElementById('timer-toggle').checked; }
 };
 
 /* ══ 7. QUIZ_ENGINE ════════════════════════════════ */
 const QUIZ = {
   start() {
-    const count   = Math.min(CONFIG.getCount(), S.chapitre.questions.length);
-    S.questions   = shuffle([...S.chapitre.questions]).slice(0, count);
-    S.qCount      = count;
-    S.timerOn     = CONFIG.getTimerOn();
-    S.cur         = 0;
-    S.score       = 0;
+    const count = Math.min(CONFIG.getCount(), S.chapitre.questions.length);
+    S.questions  = shuffle([...S.chapitre.questions]).slice(0, count);
+    S.timerOn    = CONFIG.getTimerOn();
+    S.cur        = 0;
+    S.score      = 0;
+    S.errors     = [];
     showScreen('quiz');
     UI_QUIZ.render();
   },
 
-  /** Valide la réponse courante. forceWrong=true si timer écoulé */
   validate(forceWrong = false) {
     if (S.answered) return;
     S.answered = true;
     TIMER.stop();
 
-    const q      = S.questions[S.cur];
+    const q       = S.questions[S.cur];
     const correct = getCorrect(q);
-    const sel     = [...S.selected].sort((a, b) => a - b);
-    const cor     = [...correct].sort((a, b) => a - b);
+    const sel     = [...S.selected].sort((a,b) => a-b);
+    const cor     = [...correct].sort((a,b) => a-b);
     const ok      = !forceWrong && arrEq(sel, cor);
 
-    if (ok) S.score++;
+    if (ok) {
+      S.score++;
+    } else {
+      // Enregistrer l'erreur pour l'affichage final
+      S.errors.push({ q, userSelected: [...S.selected], correct });
+    }
 
-    UI_QUIZ.revealAnswer(q, correct, ok);
+    UI_QUIZ.revealAnswer(q, correct, ok, forceWrong);
   },
 
   next() {
@@ -268,57 +252,62 @@ const UI_QUIZ = {
     S.answered  = false;
     S.selected  = [];
 
-    // Topbar
-    const pct = S.cur / total * 100;
-    document.getElementById('prog-fill').style.width  = `${pct}%`;
-    setText('prog-text',  `${S.cur + 1} / ${total}`);
-    setText('score-chip', `${S.score} pt${S.score > 1 ? 's' : ''}`);
+    // Topbar progress
+    document.getElementById('prog-fill').style.width = `${S.cur/total*100}%`;
+    setText('prog-text',  `${S.cur+1} / ${total}`);
+    this.updateScoreChip();
 
-    // Type badge
-    const typeMap = { QCU: 'QCU', QCM: 'QCM', VF: 'V/F' };
-    const clsMap  = { QCU: 'qcu', QCM: 'qcm', VF: 'vf'  };
+    // Badge type
+    const typeMap = { QCU:'QCU', QCM:'QCM', VF:'V/F' };
+    const clsMap  = { QCU:'qcu', QCM:'qcm', VF:'vf' };
     const badge   = document.getElementById('type-badge');
     badge.textContent = typeMap[q.type] || q.type;
-    badge.className   = `type-badge ${clsMap[q.type] || ''}`;
+    badge.className   = `type-badge ${clsMap[q.type]||''}`;
 
-    setText('q-index',     `Q ${S.cur + 1}`);
+    setText('q-index',     `Q ${S.cur+1}`);
     setText('q-statement', q.enonce);
-    setText('q-hint',      q.type === 'QCM' ? '⚠ Plusieurs réponses possibles' : '');
+    setText('q-hint', q.type==='QCM' ? '⚠ Plusieurs réponses possibles' : '');
 
-    // Couleur thème sur la flashcard
+    // Reset score-delta
+    const delta = document.getElementById('score-delta');
+    delta.textContent = '';
+    delta.className   = 'score-delta';
+
+    // Couleur thème
     document.getElementById('card-body').style.setProperty('--qcolor', S.theme.couleur);
 
-    // Reset UI
+    // Reset carte
     const card = document.getElementById('card-body');
     card.className = 'card-body';
-    const fb = document.getElementById('feedback-box');
-    fb.className  = 'feedback-box';
-    fb.textContent = '';
-    document.getElementById('btn-confirm').disabled = true;
-    document.getElementById('btn-forward').classList.add('hidden');
-
-    // Animation carte
     card.style.animation = 'none';
     void card.offsetWidth;
-    card.style.animation = 'card-in .28s var(--ease) both';
+    card.style.animation = '';
+
+    // Reset feedback
+    const fb = document.getElementById('feedback-box');
+    fb.className   = 'feedback-box';
+    fb.textContent = '';
+
+    // Boutons
+    document.getElementById('btn-confirm').disabled = true;
+    document.getElementById('btn-forward').classList.add('hidden');
 
     // Options
     const list = document.getElementById('opts-list');
     list.innerHTML = '';
-    const opts = q.type === 'VF' ? ['Vrai', 'Faux'] : (q.options || []);
+    const opts = q.type==='VF' ? ['Vrai','Faux'] : (q.options||[]);
     opts.forEach((txt, i) => list.appendChild(this.makeOpt(i, txt, q.type)));
 
     // Timer
-    document.getElementById('timer-float').classList.toggle('on', S.timerOn);
-    if (S.timerOn) TIMER.start();
+    const wrap = document.getElementById('timer-bar-wrap');
+    wrap.style.display = S.timerOn ? 'flex' : 'none';
+    if (S.timerOn) TIMER.start(q.type);
   },
 
   makeOpt(idx, txt, type) {
-    const btn = el('button', 'opt-btn');
+    const btn = mk('button','opt-btn');
     btn.dataset.idx = idx;
-    const ltr = type === 'VF'
-      ? (idx === 0 ? 'V' : 'F')
-      : ['A', 'B', 'C', 'D'][idx] || String(idx + 1);
+    const ltr = type==='VF' ? (idx===0?'V':'F') : ['A','B','C','D'][idx]||String(idx+1);
     btn.innerHTML = `<span class="opt-ltr">${ltr}</span><span>${txt}</span>`;
     btn.addEventListener('click', () => this.toggle(idx, type, btn));
     return btn;
@@ -332,14 +321,14 @@ const UI_QUIZ = {
       btn.classList.add('sel');
     } else {
       const pos = S.selected.indexOf(idx);
-      if (pos === -1) { S.selected.push(idx); btn.classList.add('sel'); }
-      else            { S.selected.splice(pos, 1); btn.classList.remove('sel'); }
+      if (pos===-1) { S.selected.push(idx); btn.classList.add('sel'); }
+      else          { S.selected.splice(pos,1); btn.classList.remove('sel'); }
     }
-    document.getElementById('btn-confirm').disabled = S.selected.length === 0;
+    document.getElementById('btn-confirm').disabled = S.selected.length===0;
   },
 
-  revealAnswer(q, correct, ok) {
-    // Coloriser les options
+  revealAnswer(q, correct, ok, forceWrong) {
+    // Coloriser options
     document.querySelectorAll('.opt-btn').forEach(btn => {
       const idx = parseInt(btn.dataset.idx);
       btn.disabled = true;
@@ -353,43 +342,73 @@ const UI_QUIZ = {
       }
     });
 
-    // Flash carte
+    // Flash carte + effet score
     const card = document.getElementById('card-body');
-    card.classList.add(ok ? 'flash-ok' : 'flash-err');
-    setTimeout(() => card.classList.remove('flash-ok', 'flash-err'), 600);
+    if (ok) {
+      card.classList.add('flash-ok');
+      setTimeout(() => card.classList.remove('flash-ok'), 700);
+      this.showScoreDelta('+1');
+    } else {
+      card.classList.add('flash-err');
+      setTimeout(() => card.classList.remove('flash-err'), 700);
+      if (forceWrong) this.showScoreDelta('⏱ Temps !', 'time');
+      else            this.showScoreDelta('✕', 'wrong');
+    }
 
     // Feedback
     const fb = document.getElementById('feedback-box');
-    fb.className   = `feedback-box ${ok ? 'ok' : 'err'}`;
-    fb.textContent = (ok ? '✓ Bonne réponse. ' : '✗ Mauvaise réponse. ') + (q.explication || '');
+    fb.className   = `feedback-box ${ok?'ok':'err'}`;
+    const prefix = ok ? '✓ Bonne réponse ! ' : (forceWrong ? '⏱ Temps écoulé ! ' : '✗ Mauvaise réponse. ');
+    fb.textContent = prefix + (q.explication||'');
 
-    // Score
-    setText('score-chip', `${S.score} pt${S.score > 1 ? 's' : ''}`);
+    // Score topbar
+    this.updateScoreChip();
+    document.getElementById('prog-fill').style.width = `${(S.cur+1)/S.questions.length*100}%`;
 
-    // Progress
-    const total = S.questions.length;
-    document.getElementById('prog-fill').style.width = `${(S.cur + 1) / total * 100}%`;
-
-    // Bouton suivant
+    // Bouton suivant — auto-avance après 1.8s si timer épuisé
     document.getElementById('btn-confirm').disabled = true;
     const fwd = document.getElementById('btn-forward');
-    fwd.textContent = S.cur < total - 1 ? 'Suivant →' : 'Voir les résultats →';
+    fwd.textContent = S.cur < S.questions.length-1 ? 'Suivant →' : 'Voir les résultats →';
     fwd.classList.remove('hidden');
+    if (forceWrong) {
+      setTimeout(() => { if (!S.answered || S.cur >= 0) QUIZ.next(); }, 1800);
+    }
+  },
+
+  showScoreDelta(text, cls='ok') {
+    const d = document.getElementById('score-delta');
+    d.textContent = text;
+    d.className   = `score-delta show ${cls}`;
+    setTimeout(() => { d.className = 'score-delta'; }, 1500);
+  },
+
+  updateScoreChip() {
+    const chip = document.getElementById('score-chip');
+    chip.textContent = `${S.score} pt${S.score!==1?'s':''}`;
+    // Pulse animation
+    chip.classList.remove('pulse');
+    void chip.offsetWidth;
+    chip.classList.add('pulse');
   }
 };
 
-/* ══ 9. TIMER ══════════════════════════════════════ */
+/* ══ 9. TIMER adaptatif ════════════════════════════
+   VF = 8s · QCU = 15s · QCM = 20s
+   Barre horizontale CSS + dégradé vert→rouge
+══════════════════════════════════════════════════ */
 const TIMER = {
-  start() {
-    S.timeLeft = TIMER_SECS;
-    this.draw(TIMER_SECS);
+  start(qType) {
+    const secs = TIMER_BY_TYPE[qType] || 15;
+    S.timeSecs  = secs;
+    S.timeLeft  = secs;
+    this.draw(secs, secs);
     clearInterval(S.timerHandle);
     S.timerHandle = setInterval(() => {
       S.timeLeft--;
-      this.draw(S.timeLeft);
+      this.draw(S.timeLeft, secs);
       if (S.timeLeft <= 0) {
         clearInterval(S.timerHandle);
-        QUIZ.validate(true); // temps écoulé → mauvaise réponse
+        QUIZ.validate(true);
       }
     }, 1000);
   },
@@ -399,14 +418,26 @@ const TIMER = {
     S.timerHandle = null;
   },
 
-  draw(t) {
-    setText('timer-val', t);
-    const offset = CIRCUM_TIMER * (1 - t / TIMER_SECS);
-    const arc    = document.getElementById('arc-fg');
-    arc.style.strokeDashoffset = offset;
-    arc.classList.remove('warn', 'danger');
-    if      (t <= 5)  arc.classList.add('danger');
-    else if (t <= 10) arc.classList.add('warn');
+  draw(t, total) {
+    const bar   = document.getElementById('timer-bar');
+    const label = document.getElementById('timer-label');
+    const ratio = t / total;       // 1 → 0
+    const pct   = ratio * 100;
+
+    // Largeur de la barre
+    bar.style.width = `${pct}%`;
+
+    // Couleur : vert → orange → rouge
+    const r = Math.round(94  + (224-94)  * (1-ratio));
+    const g = Math.round(203 + (107-203) * (1-ratio));
+    const b = Math.round(138 + (107-138) * (1-ratio));
+    bar.style.background = `rgb(${r},${g},${b})`;
+
+    // Ombre pulsante quand ≤ 3s
+    bar.classList.toggle('timer-urgent', t <= 3);
+
+    label.textContent = t;
+    label.style.color = t <= 3 ? `rgb(${r},${g},${b})` : 'var(--muted)';
   }
 };
 
@@ -414,51 +445,147 @@ const TIMER = {
 const RESULTS = {
   show() {
     TIMER.stop();
-    const { score, questions, chapitre } = S;
+    const { score, questions, chapitre, errors } = S;
     const total  = questions.length;
-    const pct    = Math.round(score / total * 100);
-    const note20 = (score / total * 20).toFixed(2);
+    const pct    = Math.round(score/total*100);
+    const note20 = (score/total*20).toFixed(2);
 
-    setText('res-label',   chapitre.titre);
-    setText('ring-score',  score);
-    setText('ring-total',  `/${total}`);
-    setText('res-pct',     `${pct} %`);
-    setText('res-mention', pct >= 80 ? 'Excellent !'
-                         : pct >= 60 ? 'Bon travail.'
-                         : pct >= 40 ? 'Des lacunes à combler.'
-                         :             'À retravailler sérieusement.');
-    setText('note-value',  note20);
+    setText('res-label', chapitre.titre);
 
-    // Couleur note selon score
-    const noteEl = document.getElementById('note-value');
-    noteEl.style.color = pct >= 60 ? 'var(--ok)' : pct >= 40 ? 'var(--warn)' : 'var(--err)';
+    // Emoji résultat
+    const emoji = pct>=90?'🏆':pct>=75?'⭐':pct>=60?'👍':pct>=40?'📚':'💪';
+    setText('res-emoji', emoji);
 
-    // Anneau SVG animé
+    // Anneau animé
     const bar = document.getElementById('ring-bar');
-    bar.style.stroke = pct >= 60 ? 'var(--ok)' : pct >= 40 ? 'var(--warn)' : 'var(--err)';
+    const color = pct>=60 ? 'var(--green)' : pct>=40 ? '#e09a3e' : 'var(--red)';
+    bar.style.stroke = color;
     bar.style.strokeDashoffset = CIRCUM_RING;
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        bar.style.strokeDashoffset = CIRCUM_RING * (1 - score / total);
-      }, 80);
-    });
+    requestAnimationFrame(() => setTimeout(() => {
+      bar.style.strokeDashoffset = CIRCUM_RING * (1-score/total);
+    }, 80));
 
-    // Détail par type
+    // Score animé (compteur)
+    this.animateCount('ring-score', score);
+    setText('ring-total', `/${total}`);
+
+    // Pourcentage animé
+    this.animateCount('res-pct', pct, '%');
+
+    // Note colorée
+    const noteEl = document.getElementById('note-value');
+    noteEl.textContent = note20;
+    noteEl.style.color = color;
+
+    // Message adaptatif + encouragement
+    const { mention, encourage } = this.getMessages(pct, score, total, errors.length);
+    setText('res-mention',      mention);
+    setText('res-encouragement', encourage);
+    document.getElementById('res-message-block').style.borderColor = color;
+
+    // Stats par type
     const typeCount = {};
-    questions.forEach(q => { typeCount[q.type] = (typeCount[q.type] || 0) + 1; });
-    const typeLabels = { QCU: 'QCU', QCM: 'QCM', VF: 'V/F' };
+    const typeOk    = {};
+    questions.forEach((q,i) => {
+      typeCount[q.type] = (typeCount[q.type]||0)+1;
+      // savoir si bonne réponse : erreurs contient les mauvaises
+      const wasWrong = errors.some(e => e.q===q);
+      if (!wasWrong) typeOk[q.type] = (typeOk[q.type]||0)+1;
+    });
+    const typeLabels = { QCU:'QCU', QCM:'QCM', VF:'V/F' };
     const bd = document.getElementById('res-breakdown');
-    bd.innerHTML = Object.entries(typeCount).map(([t, n]) => `
-      <div class="res-stat">
-        <div class="res-stat-v">${n}</div>
-        <div class="res-stat-l">${typeLabels[t] || t}</div>
-      </div>`).join('') + `
-      <div class="res-stat">
-        <div class="res-stat-v">${score}</div>
-        <div class="res-stat-l">Correct${score > 1 ? 's' : ''}</div>
+    bd.innerHTML = Object.entries(typeCount).map(([t,n]) => {
+      const ok  = typeOk[t]||0;
+      const tpct= Math.round(ok/n*100);
+      return `
+        <div class="res-stat">
+          <div class="res-stat-v">${ok}<span class="res-stat-sub">/${n}</span></div>
+          <div class="res-stat-l">${typeLabels[t]||t}</div>
+          <div class="res-stat-bar"><div class="res-stat-fill" style="width:${tpct}%;background:${tpct>=60?'var(--green)':tpct>=40?'#e09a3e':'var(--red)'}"></div></div>
+        </div>`;
+    }).join('') + `
+      <div class="res-stat res-stat-total">
+        <div class="res-stat-v" style="color:${color}">${score}<span class="res-stat-sub">/${total}</span></div>
+        <div class="res-stat-l">Total</div>
+        <div class="res-stat-bar"><div class="res-stat-fill" style="width:${pct}%;background:${color}"></div></div>
       </div>`;
 
+    // Section erreurs
+    const errSec = document.getElementById('errors-section');
+    const errCount = errors.length;
+    if (errCount === 0) {
+      errSec.style.display = 'none';
+    } else {
+      errSec.style.display = 'block';
+      setText('errors-count', errCount);
+      this.buildErrorsList(errors);
+    }
+
     showScreen('results');
+  },
+
+  getMessages(pct, score, total, errCount) {
+    let mention, encourage;
+    if (pct >= 90) {
+      mention    = '🏆 Excellent ! Maîtrise parfaite.';
+      encourage  = `${total-errCount} bonnes réponses sur ${total}. Tu maîtrises ce chapitre !`;
+    } else if (pct >= 75) {
+      mention    = '⭐ Très bon résultat !';
+      encourage  = `Plus que ${errCount} point${errCount>1?'s':''} à peaufiner. Continue comme ça !`;
+    } else if (pct >= 60) {
+      mention    = '👍 Bon travail.';
+      encourage  = `${errCount} erreur${errCount>1?'s':''} à revoir. Tu es sur la bonne voie !`;
+    } else if (pct >= 40) {
+      mention    = '📚 Des lacunes à combler.';
+      encourage  = `${errCount} erreur${errCount>1?'s':''}. Relis le cours et recommence, tu vas y arriver !`;
+    } else {
+      mention    = '💪 À retravailler.';
+      encourage  = `${errCount} erreur${errCount>1?'s':''}. Pas de panique — revois le cours et retente le quiz !`;
+    }
+    return { mention, encourage };
+  },
+
+  buildErrorsList(errors) {
+    const list  = document.getElementById('errors-list');
+    const opts  = ['A','B','C','D'];
+    list.innerHTML = errors.map((e,i) => {
+      const {q, userSelected, correct: corr} = e;
+      const isVF = q.type === 'VF';
+      const optsArr = isVF ? ['Vrai','Faux'] : (q.options||[]);
+      const corrTxt  = corr.map(ci => isVF ? optsArr[ci] : `${opts[ci]}. ${optsArr[ci]||''}` ).join(' · ');
+      const userTxt  = userSelected.length
+        ? userSelected.map(ci => isVF ? optsArr[ci] : `${opts[ci]}. ${optsArr[ci]||''}`).join(' · ')
+        : '(pas de réponse — temps écoulé)';
+      return `
+        <div class="error-item">
+          <div class="err-q-num">Q${i+1} · ${q.type}</div>
+          <div class="err-statement">${q.enonce}</div>
+          <div class="err-row err-wrong">
+            <span class="err-badge wrong">Votre réponse</span>
+            <span>${userTxt}</span>
+          </div>
+          <div class="err-row err-correct">
+            <span class="err-badge correct">Bonne réponse</span>
+            <span>${corrTxt}</span>
+          </div>
+          ${q.explication ? `<div class="err-expl">${q.explication}</div>` : ''}
+        </div>`;
+    }).join('');
+  },
+
+  animateCount(id, target, suffix='') {
+    const el  = document.getElementById(id);
+    if (!el) return;
+    let cur   = 0;
+    const dur = 900;
+    const step= 1000/60;
+    const inc = target / (dur/step);
+    el.textContent = `0${suffix}`;
+    const iv = setInterval(() => {
+      cur = Math.min(cur+inc, target);
+      el.textContent = `${Math.round(cur)}${suffix}`;
+      if (cur >= target) clearInterval(iv);
+    }, step);
   }
 };
 
@@ -478,36 +605,23 @@ const STORAGE = {
 };
 
 /* ══ 12. UTILS ═════════════════════════════════════ */
-function el(tag, cls) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  return e;
-}
-function setText(id, val) {
-  const e = document.getElementById(id);
-  if (e) e.textContent = val;
-}
-function stripNum(titre) {
-  return titre.replace(/^Chapitre\s+\d+\s*[—–-]\s*/i, '');
-}
+function mk(tag, cls) { const e = document.createElement(tag); if(cls) e.className=cls; return e; }
+function setText(id, val) { const e = document.getElementById(id); if(e) e.textContent=val; }
+function stripNum(t) { return t.replace(/^Chapitre\s+\d+\s*[—–-]\s*/i,''); }
 function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
   }
   return arr;
 }
-function arrEq(a, b) {
-  return a.length === b.length && a.every((v, i) => v === b[i]);
+function arrEq(a,b) { return a.length===b.length && a.every((v,i)=>v===b[i]); }
+function sumQ(data) {
+  return data.themes.reduce((s,t)=>s+t.chapitres.reduce((ss,ch)=>ss+ch.questions.length,0),0);
 }
-function sumQuestions(data) {
-  return data.themes.reduce((s, t) =>
-    s + t.chapitres.reduce((ss, ch) => ss + ch.questions.length, 0), 0);
-}
-/** Extrait les index corrects — supporte bool (ancien format) et liste (nouveau) */
 function getCorrect(q) {
-  if (q.type === 'VF') {
-    if (typeof q.correct === 'boolean') return [q.correct ? 0 : 1];
+  if (q.type==='VF') {
+    if (typeof q.correct==='boolean') return [q.correct?0:1];
     if (Array.isArray(q.correct)) return q.correct;
     return [0];
   }
@@ -515,23 +629,18 @@ function getCorrect(q) {
 }
 
 /* ══ ÉVÉNEMENTS ════════════════════════════════════ */
-// Retours navigation
-document.getElementById('back-home').addEventListener('click',    () => { TIMER.stop(); HOME.render(); });
-document.getElementById('back-chapters').addEventListener('click',() => { TIMER.stop(); CHAPTERS.open(S.theme); });
-document.getElementById('btn-quit').addEventListener('click',     () => { TIMER.stop(); CONFIG.open(S.chapitre, S.theme); });
+document.getElementById('back-home').addEventListener('click',     () => { TIMER.stop(); HOME.render(); });
+document.getElementById('back-chapters').addEventListener('click', () => { TIMER.stop(); CHAPTERS.open(S.theme); });
+document.getElementById('btn-quit').addEventListener('click',      () => { TIMER.stop(); CONFIG.open(S.chapitre, S.theme); });
+document.getElementById('btn-launch').addEventListener('click',    () => QUIZ.start());
+document.getElementById('btn-confirm').addEventListener('click',   () => QUIZ.validate());
+document.getElementById('btn-forward').addEventListener('click',   () => QUIZ.next());
+document.getElementById('btn-replay').addEventListener('click',    () => CONFIG.open(S.chapitre, S.theme));
+document.getElementById('btn-pick').addEventListener('click',      () => { TIMER.stop(); CHAPTERS.open(S.theme); });
 
-// Lancer le quiz
-document.getElementById('btn-launch').addEventListener('click', () => QUIZ.start());
-
-// Quiz
-document.getElementById('btn-confirm').addEventListener('click', () => QUIZ.validate());
-document.getElementById('btn-forward').addEventListener('click', () => QUIZ.next());
-
-// Résultats
-document.getElementById('btn-replay').addEventListener('click', () => {
-  CONFIG.open(S.chapitre, S.theme);
-});
-document.getElementById('btn-pick').addEventListener('click', () => {
-  TIMER.stop();
-  CHAPTERS.open(S.theme);
+// Toggle erreurs
+document.getElementById('btn-toggle-errors').addEventListener('click', function() {
+  const list = document.getElementById('errors-list');
+  const hidden = list.classList.toggle('hidden');
+  this.querySelector('svg').style.transform = hidden ? '' : 'rotate(180deg)';
 });
