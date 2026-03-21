@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DCG Économie — Quiz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     ÉCRAN 0 · ACCUEIL / THÈMES
+══════════════════════════════════════════ -->
+<div id="s-home" class="screen active">
+  <header class="site-header">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" fill="none">
+        <rect x="2" y="2" width="13" height="13" rx="3" fill="var(--accent)"/>
+        <rect x="17" y="2" width="13" height="13" rx="3" fill="var(--accent)" opacity=".45"/>
+        <rect x="2" y="17" width="13" height="13" rx="3" fill="var(--accent)" opacity=".45"/>
+        <rect x="17" y="17" width="13" height="13" rx="3" fill="var(--accent)" opacity=".2"/>
+      </svg>
+      <span class="brand-name">DCG<em>Quiz</em></span>
+    </div>
+    <p class="site-matiere" id="site-matiere">…</p>
+  </header>
+
+  <main class="home-body">
+    <div class="home-intro">
+      <h1 class="home-title">Révisez par<br><span class="title-em">thème</span></h1>
+      <p class="home-kpi" id="home-kpi">720 questions · 18 chapitres · 7 thèmes</p>
+    </div>
+
+    <div class="themes-wrap" id="themes-wrap">
+      <!-- Généré par JS -->
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <span id="footer-info">Chargement…</span>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ÉCRAN 1 · CHAPITRES DU THÈME
+══════════════════════════════════════════ -->
+<div id="s-chapters" class="screen">
+  <div class="nav-bar">
+    <button class="btn-back" id="back-home">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 16 7 10 13 4"/></svg>
+      Thèmes
+    </button>
+    <span class="nav-label" id="nav-theme-label"></span>
+    <span style="width:80px"></span>
+  </div>
+
+  <main class="chapters-body">
+    <div class="chapters-hero">
+      <span class="theme-emoji" id="ch-emoji"></span>
+      <div>
+        <h2 class="chapters-title" id="ch-title"></h2>
+        <p class="chapters-sub">Sélectionnez un chapitre pour commencer</p>
+      </div>
+    </div>
+    <ul class="ch-list" id="ch-list"></ul>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ÉCRAN 2 · CONFIGURATION DU QUIZ
+══════════════════════════════════════════ -->
+<div id="s-config" class="screen">
+  <div class="nav-bar">
+    <button class="btn-back" id="back-chapters">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 16 7 10 13 4"/></svg>
+      Chapitres
+    </button>
+    <span class="nav-label" id="nav-chap-label"></span>
+    <span style="width:80px"></span>
+  </div>
+
+  <main class="config-body">
+    <div class="config-card">
+      <div class="cfg-header">
+        <span class="cfg-emoji" id="cfg-emoji"></span>
+        <div>
+          <h2 class="cfg-title" id="cfg-title"></h2>
+          <p class="cfg-sub" id="cfg-sub"></p>
+        </div>
+      </div>
+
+      <fieldset class="cfg-field">
+        <legend class="cfg-legend">Nombre de questions</legend>
+        <div class="count-row" id="count-row">
+          <label class="count-opt">
+            <input type="radio" name="qcount" value="10"/>
+            <span class="count-face">
+              <span class="count-n">10</span>
+              <span class="count-hint">Rapide · ~5 min</span>
+            </span>
+          </label>
+          <label class="count-opt">
+            <input type="radio" name="qcount" value="20"/>
+            <span class="count-face">
+              <span class="count-n">20</span>
+              <span class="count-hint">Normal · ~10 min</span>
+            </span>
+          </label>
+          <label class="count-opt">
+            <input type="radio" name="qcount" value="40" checked/>
+            <span class="count-face">
+              <span class="count-n">40</span>
+              <span class="count-hint">Complet · ~20 min</span>
+            </span>
+          </label>
+        </div>
+        <p class="count-warn hidden" id="count-warn"></p>
+      </fieldset>
+
+      <fieldset class="cfg-field">
+        <legend class="cfg-legend">Minuteur</legend>
+        <label class="toggle-label">
+          <span class="toggle-wrap">
+            <input type="checkbox" id="timer-toggle" checked/>
+            <span class="toggle-pill">
+              <span class="toggle-knob"></span>
+            </span>
+          </span>
+          <span class="toggle-text">30 secondes par question</span>
+        </label>
+      </fieldset>
+
+      <button class="btn-launch" id="btn-launch">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        Démarrer le quiz
+      </button>
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ÉCRAN 3 · QUIZ (FLASHCARD)
+══════════════════════════════════════════ -->
+<div id="s-quiz" class="screen">
+  <div class="quiz-topbar">
+    <button class="btn-back btn-quit" id="btn-quit">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 16 7 10 13 4"/></svg>
+      Quitter
+    </button>
+    <div class="qbar-center">
+      <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
+      <span class="progress-text" id="prog-text">1 / 1</span>
+    </div>
+    <div class="score-chip" id="score-chip">0 pt</div>
+  </div>
+
+  <!-- Timer arc SVG — flottant -->
+  <div class="timer-float" id="timer-float" aria-hidden="true">
+    <svg viewBox="0 0 64 64" class="timer-svg">
+      <circle class="arc-bg" cx="32" cy="32" r="26"/>
+      <circle class="arc-fg" id="arc-fg" cx="32" cy="32" r="26"/>
+    </svg>
+    <span class="timer-val" id="timer-val">30</span>
+  </div>
+
+  <div class="quiz-stage">
+    <!-- FLASHCARD -->
+    <div class="card-shell">
+      <div class="card-body" id="card-body">
+        <div class="card-meta">
+          <span class="type-badge" id="type-badge">QCU</span>
+          <span class="q-index" id="q-index">Q 1</span>
+        </div>
+        <p class="q-statement" id="q-statement"></p>
+        <p class="q-hint" id="q-hint"></p>
+      </div>
+    </div>
+
+    <!-- OPTIONS -->
+    <div class="opts-zone">
+      <div class="opts-list" id="opts-list"></div>
+      <div class="feedback-box" id="feedback-box"></div>
+      <div class="act-row">
+        <button class="btn-confirm" id="btn-confirm" disabled>Valider</button>
+        <button class="btn-forward hidden" id="btn-forward">Suivant →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ÉCRAN 4 · RÉSULTATS
+══════════════════════════════════════════ -->
+<div id="s-results" class="screen">
+  <div class="results-scene">
+    <div class="results-card">
+
+      <p class="res-label" id="res-label"></p>
+
+      <!-- Anneau SVG -->
+      <div class="ring-wrap">
+        <svg class="ring-svg" viewBox="0 0 140 140">
+          <circle class="ring-bg" cx="70" cy="70" r="56"/>
+          <circle class="ring-bar" id="ring-bar" cx="70" cy="70" r="56"/>
+        </svg>
+        <div class="ring-center">
+          <span class="ring-score" id="ring-score">0</span>
+          <span class="ring-total" id="ring-total">/0</span>
+        </div>
+      </div>
+
+      <p class="res-pct" id="res-pct">–</p>
+      <p class="res-mention" id="res-mention"></p>
+
+      <!-- Note sur 20 -->
+      <div class="note-block" id="note-block">
+        <span class="note-label">Note sur 20</span>
+        <span class="note-value" id="note-value">—</span>
+        <span class="note-denom">/20</span>
+      </div>
+
+      <!-- Détail types -->
+      <div class="res-breakdown" id="res-breakdown"></div>
+
+      <div class="res-btns">
+        <button class="btn-replay" id="btn-replay">↺ Recommencer</button>
+        <button class="btn-pick" id="btn-pick">Autre chapitre</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
