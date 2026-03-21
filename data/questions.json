@@ -4,7 +4,7 @@
     {
       "theme": "Thème 1 — Appréhender les fondements de l'activité économique",
       "icon": "⚗️",
-      "couleur": "#6366F1",
+      "couleur": "#c9a96e",
       "chapitres": [
         {
           "id": 1,
@@ -564,14 +564,7 @@
               "explication": "*Les limites du PIB : il ignore les inégalités (A), exclut la production non marchande (B) et comptabilise des activités négatives pour le bien-être comme des richesses (C — frais de procès, nettoyage après une marée noire...). En revanche, le PIB est bien un FLUX annuel, non un stock (D est faux). Ces limites ont conduit au développement d'indicateurs alternatifs comme l'IDH ou les 10 indicateurs de richesse français.*"
             }
           ]
-        }
-      ]
-    },
-    {
-      "theme": "Thème 2 — Comprendre le fonctionnement des marchés",
-      "icon": "📊",
-      "couleur": "#0EA5E9",
-      "chapitres": [
+        },
         {
           "id": 2,
           "titre": "Chapitre 2 — Histoire économique : faits et courants de pensée",
@@ -1129,7 +1122,14 @@
               ]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "theme": "Thème 2 — Comprendre le fonctionnement des marchés",
+      "icon": "📊",
+      "couleur": "#5ecb8a",
+      "chapitres": [
         {
           "id": 3,
           "titre": "Chapitre 3 — Le fonctionnement du marché concurrentiel",
@@ -2254,7 +2254,7 @@
     {
       "theme": "Thème 3 — Identifier les opérations de financement",
       "icon": "💰",
-      "couleur": "#8B5CF6",
+      "couleur": "#e06b6b",
       "chapitres": [
         {
           "id": 5,
@@ -3381,7 +3381,7 @@
     {
       "theme": "Thème 4 — Identifier les enjeux de la croissance économique",
       "icon": "🌱",
-      "couleur": "#22C55E",
+      "couleur": "#8b6fd4",
       "chapitres": [
         {
           "id": 7,
@@ -5066,7 +5066,7 @@
     {
       "theme": "Thème 5 — Analyser la régulation publique",
       "icon": "🏛️",
-      "couleur": "#F59E0B",
+      "couleur": "#5aafd4",
       "chapitres": [
         {
           "id": 10,
@@ -6751,7 +6751,7 @@
     {
       "theme": "Thème 6 — Analyser les déséquilibres sociaux et leur régulation",
       "icon": "⚖️",
-      "couleur": "#EC4899",
+      "couleur": "#d46f8b",
       "chapitres": [
         {
           "id": 13,
@@ -8432,9 +8432,9 @@
       ]
     },
     {
-      "theme": "Thème 7 — Identifier les effets et les enjeux de la mondialisation",
+      "theme": "Thème 7 — Identifier les effets et les enjeux de la mondialisation des économies",
       "icon": "🌐",
-      "couleur": "#14B8A6",
+      "couleur": "#6fb86f",
       "chapitres": [
         {
           "id": 16,
