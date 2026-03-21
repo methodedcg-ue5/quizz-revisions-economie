@@ -83,13 +83,14 @@ button{font-family:'DM Sans',sans-serif;cursor:pointer;border:none;background:no
   padding:10px 20px;
   background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;
 }
-.brand{display:flex;align-items:center;gap:10px}
-.brand-mark{width:26px;height:26px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:12px}
 .brand-name{
   font-family:'Playfair Display',serif;
   font-size:1.1rem;font-weight:700;color:var(--accent);
+  text-decoration:none;
 }
-.brand-name em{font-style:italic}
+.header-sep{width:1px;height:18px;background:var(--border);flex-shrink:0}
+.header-title{font-size:.82rem;font-weight:500;color:var(--text)}
 .site-matiere{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px}
 
 .home-body{flex:1;max-width:1040px;width:100%;margin:0 auto;padding:2.5rem 1.5rem 2rem}
