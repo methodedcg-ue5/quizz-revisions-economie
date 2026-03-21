@@ -175,30 +175,24 @@ const CONFIG = {
     setText('cfg-title', stripNum(chapitre.titre));
     setText('cfg-sub',   `${total} questions disponibles · ${theme.theme}`);
 
-    // Activer/désactiver les options de count
-    document.querySelectorAll('[name="qcount"]').forEach(radio => {
+    // Activer/désactiver les options de count + classe CSS
+    document.querySelectorAll('.count-opt').forEach(label => {
+      const radio = label.querySelector('input');
       const n = parseInt(radio.value);
-      radio.disabled = n > total;
-      if (radio.disabled && radio.checked) radio.checked = false;
+      const disabled = n > total;
+      radio.disabled = disabled;
+      label.classList.toggle('disabled', disabled);
     });
 
-    // Sélection par défaut : le max possible
-    let any = false;
-    document.querySelectorAll('[name="qcount"]').forEach(radio => {
-      if (!radio.disabled) { radio.checked = true; any = true; } // last valid wins
-    });
-    // Actually we want the last radio enabled to be checked
-    // Redo: uncheck all, then check the highest enabled
-    document.querySelectorAll('[name="qcount"]').forEach(r => r.checked = false);
+    // Sélectionner le plus grand count disponible
+    document.querySelectorAll('[name="qcount"]').forEach(r => { r.checked = false; });
     const enabled = [...document.querySelectorAll('[name="qcount"]:not(:disabled)')];
     if (enabled.length) enabled[enabled.length - 1].checked = true;
 
     this.updateWarn(total);
 
-    // Mettre à jour le warn quand on change le count
-    document.querySelectorAll('[name="qcount"]').forEach(radio => {
-      radio.addEventListener('change', () => this.updateWarn(total));
-    });
+    // Écouter les changements via delegation (une seule fois)
+    document.getElementById('count-row').onchange = () => this.updateWarn(total);
 
     showScreen('config');
   },
@@ -234,6 +228,7 @@ const QUIZ = {
     S.timerOn     = CONFIG.getTimerOn();
     S.cur         = 0;
     S.score       = 0;
+    showScreen('quiz');
     UI_QUIZ.render();
   },
 

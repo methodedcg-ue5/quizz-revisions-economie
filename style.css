@@ -273,7 +273,7 @@ body::before{
 }
 .count-opt:hover .count-face{border-color:var(--border2);transform:translateY(-2px)}
 .count-opt input:checked~.count-face{border-color:var(--accent);background:var(--accent-soft)}
-.count-opt:has(input:disabled) .count-face{opacity:.3;cursor:not-allowed;transform:none!important}
+.count-opt.disabled .count-face{opacity:.3;cursor:not-allowed;transform:none!important}
 .count-n{
   font-family:var(--f-head);font-size:1.7rem;
   color:var(--ink);line-height:1;
