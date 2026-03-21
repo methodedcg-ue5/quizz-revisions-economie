@@ -100,7 +100,7 @@ button{font-family:'DM Sans',sans-serif;cursor:pointer;border:none;background:no
   font-size:clamp(1.8rem,4vw,2.8rem);
   font-weight:700;line-height:1.2;color:var(--text);margin-bottom:.4rem;
 }
-.title-em{color:var(--accent);font-style:italic}
+.title-em{color:var(--accent)}
 .home-kpi{font-size:.78rem;color:var(--muted)}
 
 .themes-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.75rem}
