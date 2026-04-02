@@ -90,8 +90,8 @@ button{font-family:'DM Sans',sans-serif;cursor:pointer;border:none;background:no
   text-decoration:none;
 }
 .header-sep{width:1px;height:18px;background:var(--border);flex-shrink:0}
-.header-title{font-size:.82rem;font-weight:500;color:var(--text)}
-.site-matiere{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px}
+.header-title{font-size:.82rem;font-weight:500;color:var(--text);white-space:nowrap}
+.site-matiere{display:none}
 
 .home-body{flex:1;max-width:1040px;width:100%;margin:0 auto;padding:2.5rem 1.5rem 2rem}
 .home-intro{margin-bottom:2rem}
